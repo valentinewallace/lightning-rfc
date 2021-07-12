@@ -1,0 +1,86 @@
+<pre>
+bLIP: 2
+Title: Keysend
+Status: Active
+Type: Process
+Author: Valentine Wallace <vwallace@protonmail.com>
+Created: 2021-05-21
+License: BSD-2-Clause, OPL
+</pre>
+
+==Abstract==
+
+Keysend is a type of lightning payment that does not require the payee to
+provide an invoice. Instead, the payer includes their payer-selected payment
+preimage in the TLV onion. Nodes that support keysend may also advertise feature
+bit `55`, and some implementations (in particular, C-Lightning) require the
+payee to advertise the keysend feature bit before attempting a keysend payment
+to said payee.
+
+As of authoring this bLIP, keysend is already supported by lnd, C-Lightning,
+Eclair, (soon) Rust-Lightning, and possibly others. This bLIP serves to document
+what is already well-supported in the wild, for posterity and so that new
+implementations don't have to reverse-engineer keysend from existing
+implementations.
+
+==Copyright==
+
+This bLIP is dual-licensed under the Open Publication License and BSD 2-clause license.
+
+==Specification==
+
+* To send a keysend payment, include a TLV record keyed by type `5482373484`,
+  with a value of a randomly generated and unguessable 32-byte value that serves
+  as the HTLC payment preimage
+* To support receiving keysend payments, parse the TLV onion for the type
+  `5482373484` and use the value as the payment preimage to complete the payment
+* Advertise feature bit 55 as supported in the node context only
+
+==Motivation==
+
+A convenience of layer 1 bitcoin is being able to spontaneously send to a
+bitcoin address with no advance work required on the part of the payee. Keysend
+brings the convenience of sponaneous payments to layer 2 (with a few caveats,
+see the Drawbacks section).
+
+As previously mentioned, keysend also has the advantage of already being
+supported by major implementations. So regardless of whether it is the best
+solution to spontaneous payments, it's a good idea to have some form of
+official documentation for it. *However*, because of the drawbacks of keysend
+and the expectation that it will eventually be deprecated in favor of a more
+well-developed spontaneous payment solution like
+[Offers](https://github.com/lightningnetwork/lightning-rfc/pull/798) or
+[AMP](https://github.com/lightningnetwork/lightning-rfc/pull/658), it makes more
+sense for keysend to be documented in a bLIP than included in the official BOLTs.
+
+Additionally, as of authoring this bLIP, keysend is used in multiple lightning
+ecosystem projects such as Sphinx.chat.
+
+==Rationale==
+
+Design decisions for keysend were largely made by the original lnd keysend
+implementation (i.e. the choice of `5482373484` for the TLV type). The feature
+bit number was selected by C-Lightning (TODO(val) is this accurate?). Because
+this feature has been so widely deployed for so long, the main rationale for the
+specification is that major implementations already agree on it and implement it.
+
+==Keysend Drawbacks==
+
+* Inability for the payee to specify their preferred `min_final_cltv_expiry`.
+  This is an issue because payer and payee may have differing security
+  requirements, which could lead to payment failures if the payee considers the
+  payer's choice of `min_final_cltv_expiry` too high or too low.
+* Multi-path payments currently not supported in the wild. Basic MPP could
+  theoretically be supported with keysend payments, if payers also choose their
+  own payment secret, but this is not supported by any major implementations
+  currently
+* Loss of being able to use the preimage as proof-of-payment. With non-keysend
+  payments, payers could use the payment preimage in a situation where they need
+  to prove that they made a payment. This does not hold for keysend payments
+  since the preimage was provided by the payer to begin with.
+
+==Reference implementations==
+
+Rust-Lightning: https://github.com/rust-bitcoin/rust-lightning/pull/967
+C-Lightning: https://github.com/ElementsProject/lightning/blob/master/plugins/keysend.c
+`lnd` original keysend PR: https://github.com/lightningnetwork/lnd/pull/3795
